@@ -1,5 +1,95 @@
 version: '3'
 services:
+
+  ### Emby #######################################################################
+  emby:
+    image: linuxserver/emby:beta
+    container_name: emby
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - ${APP_BASE_DIR}/emby/config:/config
+      - ${MEDIA_DIR}:/share/media
+    ports:
+      - ${EMBY_PORT}:8096
+      - ${EMBY_PORT_HTTPS}:8920
+    devices:
+      - ${DVI_DIR}:/dev/dri
+    restart: unless-stopped
+    envfile:
+      - stack.env
+
+  ### Jellyseerr #######################################################################
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TZ}
+    ports:
+      - ${JELLYSEERR_PORT}:5055
+    volumes:
+      - ${APP_BASE_DIR}/jellyseerr/config:/app/config
+    restart: unless-stopped
+    envfile:
+      - stack.env
+
+  ### Plex #######################################################################
+  plex:
+    image: plexinc/pms-docker
+    container_name: plex
+    environment:
+      - PLEX_UID=${PUID}
+      - PLEX_GID=${PGID}
+      - TZ=${TZ}
+      - ADVERTISE_IP=https://plex.gamersgu.cn:12443
+    ports:
+      - ${PLEX_PORT}:32400
+    volumes:
+      - ${APP_BASE_DIR}/plex-server/config:/config
+      - ${MEDIA_DIR}:/share/media
+      - /mnt/media/music/music:/share/media/music
+    devices:
+      - ${DVI_DIR}:/dev/dri
+    restart: unless-stopped
+    envfile:
+      - stack.env
+
+  ### Overseerr #######################################################################
+  overseerr:
+    image: linuxserver/overseerr:latest
+    container_name: overseerr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${APP_BASE_DIR}/overseerr/config:/config
+    ports:
+      - ${OVERSEERR_PORT}:5055
+    restart: unless-stopped
+    envfile:
+      - stack.env
+      
+  ### Tautulli #######################################################################
+  tautulli:
+    image: ghcr.io/tautulli/tautulli
+    container_name: tautulli
+    restart: unless-stopped
+    volumes:
+      - ${APP_BASE_DIR}/tautulli/config:/config
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - ${TAUTULLI_PORT}:8181
+    envfile:
+      - stack.env  
+
+
+
   ### Nextcloud #######################################################################
   nextcloud-db:
     container_name: hexo
