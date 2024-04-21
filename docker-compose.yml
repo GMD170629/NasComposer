@@ -87,8 +87,119 @@ services:
       - ${TAUTULLI_PORT}:8181
     envfile:
       - stack.env  
+  
+  ### qBittorrent #######################################################################
+  qbittorrent:
+    image: linuxserver/qbittorrent:4.5.5
+    container_name: qbittorrent
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}      
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=${QBITTORRENT_TORRENTING_PORT}
+    ports:
+      - ${QBITTORRENT_PORT}:8080
+      - ${QBITTORRENT_TORRENTING_PORT}:${QBITTORRENT_TORRENTING_PORT}
+      - ${QBITTORRENT_TORRENTING_PORT}:${QBITTORRENT_TORRENTING_PORT}/udp
+    volumes:
+      - ${APP_BASE_DIR}/qbittorrent:/config
+      - ${MEDIA_DOWNLOAD_DIR}:/share/media/download
+      - ${MEDIA_DOWNLOAD_DIR}:/downloads
+      - ${COMIC_DOWNLOAD_DIR}:/comic-download
+      - ${BOOKS_DOWNLOAD_DIR}:/books-download
+      - ${MUSIC_DOWNLOAD_DIR}:/music-download
+      - ${SHALIU_DOWNLOAD_DIR}:/shualiu
+    restart: unless-stopped
+    envfile:
+      - stack.env  
 
+  ### Transmission #######################################################################
+  transmission:
+    image: linuxserver/transmission:version-3.00-r8
+    container_name: transmission
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - PEERPORT=${TRANSMISSION_TORRENTING_PORT}
+      - RPCPORT9=9091
+      - USER=${TRANSMISSION_USER} #optional
+      - PASS=${TRANSMISSION_PASS} #optional
+    volumes:
+      - ${APP_BASE_DIR}/transmission/config:/config
+      - ${MEDIA_DOWNLOAD_DIR}:/share/media/download
+      - ${MEDIA_DOWNLOAD_DIR}:/downloads
+      - ${COMIC_DOWNLOAD_DIR}:/comic-download
+      - ${BOOKS_DOWNLOAD_DIR}:/books-download
+      - ${MUSIC_DOWNLOAD_DIR}:/music-download
+      - ${SHALIU_DOWNLOAD_DIR}:/shualiu
+    ports:
+      - ${TRANSMISSION_PORT}:9091
+      - ${TRANSMISSION_TORRENTING_PORT}:${TRANSMISSION_TORRENTING_PORT}
+      - ${TRANSMISSION_TORRENTING_PORT}:${TRANSMISSION_TORRENTING_PORT}/udp
+    restart: unless-stopped
+    envfile:
+      - stack.env  
 
+  ### MoviePilot #######################################################################
+  MoviePilot:
+    image: jxxghp/moviepilot:latest
+    container_name: moviepilot
+    ports:
+      - ${MOVIEPILOT_PORT}:3000        # webui端口
+      - ${MOVIEPILOT_API_PORT}:3001        # API服务端口
+    volumes:     
+      - ${MEDIA_DIR}:/share/media
+      - ${APP_BASE_DIR}/moviepilot/moviepilot:/moviepilot
+      - ${APP_BASE_DIR}/moviepilot/config:/config
+      - ${SHALIU_DOWNLOAD_DIR}:/shualiu
+      - ${APP_BASE_DIR}/qbittorrent/qBittorrent/BT_backup:/BT_backup
+    environment: 
+      - PROXY_HOST=${MOVIEPILOT_PROXY_HOST} #网络代理，访问themoviedb或者重启更新需要使用代理访问，格式为http(s)://ip:port、socks5://user:pass@host:port（仅支持环境变量配置）
+      - PUID=${PUID} #运行程序用户的uid，默认0（仅支持环境变量配置）
+      - PGID=${PGID} #运行程序用户的gid，默认0（仅支持环境变量配置）
+      - SUPERUSER=${MOVIEPILOT_USER}
+      - SUBSCRIBE_SEARCH=false # 订阅搜索，true/false，默认false，开启后会每隔24小时对所有订阅进行全量搜索，以补齐缺失剧集（一般情况下正常订阅即可，订阅搜索只做为兜底，会增加站点压力，不建议开启）
+      - TZ=${TZ}
+      - AUTH_SITE=iyuu,audiences
+      # IYUU登录令牌
+      - IYUU_SIGN=IYUU18340T93017c31420965f73c4af5037a0c2e99437ddbf2
+      - AUDIENCES_UID=20964
+      - AUDIENCES_PASSKEY=9af19e406d75b05c4473ab07f07578ca
+      # 进阶配置
+      # 大内存模式，默认为false，开启后会占用更多的内存，但响应速度会更快
+      - BIG_MEMORY_MODE=true
+      # MOVIE_RENAME_FORMAT支持的配置项：
+      # title： 标题
+      # original_name： 原文件名
+      # original_title： 原语种标题
+      # name： 识别名称
+      # year： 年份
+      # edition： 版本
+      # videoFormat： 分辨率
+      # releaseGroup： 制作组/字幕组
+      # effect： 特效
+      # videoCodec： 视频编码
+      # audioCodec： 音频编码
+      # tmdbid： TMDBID
+      # imdbid： IMDBID
+      # part：段/节
+      # fileExt：文件扩展名
+      # 电影重命名格式
+      - MOVIE_RENAME_FORMAT={{original_title}}{% if year %} ({{year}}){% endif %}/{{original_title}}{% if year %} ({{year}}){% endif %}{% if part %}-{{part}}{% endif %}{% if videoFormat %} - {{videoFormat}}{% endif %}{{fileExt}}
+      # 电视剧重命名格式
+      # TV_RENAME_FORMAT额外支持的配置项：
+      # season： 季号
+      # episode： 集号
+      # season_episode： 季集 SxxExx
+      - TV_RENAME_FORMAT={{original_title}}{% if year %} ({{year}}){% endif %}/Season {{season}}/{{original_title}} - {{season_episode}}{% if part %}-{{part}}{% endif %}{{fileExt}}
+      # 插件市场仓库地址，仅支持Github仓库main分支，多个地址使用,分隔，默认为官方插件仓库：https://github.com/jxxghp/MoviePilot-Plugins ，通过查看MoviePilot-Plugins项目的fork，或者查看频道置顶了解更多第三方插件仓库。
+      - PLUGIN_MARKET=https://github.com/jxxghp/MoviePilot-Plugins,https://github.com/thsrite/MoviePilot-Plugins,https://github.com/honue/MoviePilot-Plugins
+      # Github token，提高自动更新、插件安装等请求Github Api的限流阈值，格式：ghp_****
+    restart: always
+    envfile:
+      - stack.env  
 
   ### Nextcloud #######################################################################
   nextcloud-db:
