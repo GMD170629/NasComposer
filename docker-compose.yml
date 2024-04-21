@@ -1,0 +1,18 @@
+version: '3'
+services:
+
+  hexo:
+    container_name: hexo
+    image: bloodstar/hexo:latest
+    hostname: hexo
+    ports:
+      - ${HEXO_PORT}:4000
+    volumes:
+      - ${APP_BASE_DIR}/hexo:/app
+    environment:
+      - PUID=${PGID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - GIT_USER=${HEXO_GIT_USER}
+      - GIT_EMAIL=${HEXO_GIT_EMAIL}
+    restart: always
