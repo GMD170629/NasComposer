@@ -1,92 +1,408 @@
-# BASE
-APP_BASE_DIR=/mnt/base/container
-MEDIA_DIR=/mnt/media/media
-BOOKS_DIR=/mnt/media/books
-MUSIC_DIR=/mnt/media/music
-MEDIA_DOWNLOAD_DIR=/mnt/media/media/download
-BOOKS_DOWNLOAD_DIR=/mnt/media/books/books-download
-COMIC_DOWNLOAD_DIR=/mnt/media/books/download
-MUSIC_DOWNLOAD_DIR=/mnt/media/music/download
-SHALIU_DOWNLOAD_DIR=/mnt/pool/shualiu
-DOCKER_SOCKET=/var/run/docker.sock
-DVI_DIR=/dev/dri
-PUID=0
-PGID=0
-TZ=Asia/Shanghai
+version: '3'
+services:
 
-#================= emby ====================================
-EMBY_PORT_HTTP=8096
-EMBY_PORT_HTTPS=8920
+  ### Emby #######################################################################
+  emby:
+    image: linuxserver/emby:beta
+    container_name: emby
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - ${APP_BASE_DIR}/emby/config:/config
+      - ${MEDIA_DIR}:/share/media
+    ports:
+      - ${EMBY_PORT}:8096
+      - ${EMBY_PORT_HTTPS}:8920
+    devices:
+      - ${DVI_DIR}:/dev/dri
+    restart: unless-stopped
+    envfile:
+      - stack.env
 
-#================= jellyseerr ====================================
-JELLYSEERR_PORT=8370
+  ### Jellyseerr #######################################################################
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TZ}
+    ports:
+      - ${JELLYSEERR_PORT}:5055
+    volumes:
+      - ${APP_BASE_DIR}/jellyseerr/config:/app/config
+    restart: unless-stopped
+    envfile:
+      - stack.env
 
-#================= plex ====================================
-PLEX_PORT=32400
+  ### Plex #######################################################################
+  plex:
+    image: plexinc/pms-docker
+    container_name: plex
+    environment:
+      - PLEX_UID=${PUID}
+      - PLEX_GID=${PGID}
+      - TZ=${TZ}
+      - ADVERTISE_IP=https://plex.gamersgu.cn:12443
+    ports:
+      - ${PLEX_PORT}:32400
+    volumes:
+      - ${APP_BASE_DIR}/plex-server/config:/config
+      - ${MEDIA_DIR}:/share/media
+      - /mnt/media/music/music:/share/media/music
+    devices:
+      - ${DVI_DIR}:/dev/dri
+    restart: unless-stopped
+    envfile:
+      - stack.env
 
-#================= overseerr ====================================
-OVERSEERR_PORT=5056
+  ### Overseerr #######################################################################
+  overseerr:
+    image: linuxserver/overseerr:latest
+    container_name: overseerr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${APP_BASE_DIR}/overseerr/config:/config
+    ports:
+      - ${OVERSEERR_PORT}:5055
+    restart: unless-stopped
+    envfile:
+      - stack.env
+      
+  ### Tautulli #######################################################################
+  tautulli:
+    image: ghcr.io/tautulli/tautulli
+    container_name: tautulli
+    restart: unless-stopped
+    volumes:
+      - ${APP_BASE_DIR}/tautulli/config:/config
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    ports:
+      - ${TAUTULLI_PORT}:8181
+    envfile:
+      - stack.env  
+  
+  ### qBittorrent #######################################################################
+  qbittorrent:
+    image: linuxserver/qbittorrent:4.5.5
+    container_name: qbittorrent
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}      
+      - WEBUI_PORT=8080
+      - TORRENTING_PORT=${QBITTORRENT_TORRENTING_PORT}
+    ports:
+      - ${QBITTORRENT_PORT}:8080
+      - ${QBITTORRENT_TORRENTING_PORT}:${QBITTORRENT_TORRENTING_PORT}
+      - ${QBITTORRENT_TORRENTING_PORT}:${QBITTORRENT_TORRENTING_PORT}/udp
+    volumes:
+      - ${APP_BASE_DIR}/qbittorrent:/config
+      - ${MEDIA_DOWNLOAD_DIR}:/share/media/download
+      - ${MEDIA_DOWNLOAD_DIR}:/downloads
+      - ${COMIC_DOWNLOAD_DIR}:/comic-download
+      - ${BOOKS_DOWNLOAD_DIR}:/books-download
+      - ${MUSIC_DOWNLOAD_DIR}:/music-download
+      - ${SHALIU_DOWNLOAD_DIR}:/shualiu
+    restart: unless-stopped
+    envfile:
+      - stack.env  
 
-#================= tautulli ====================================
-TAUTULLI_PORT=8181
+  ### Transmission #######################################################################
+  transmission:
+    image: linuxserver/transmission:version-3.00-r8
+    container_name: transmission
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - PEERPORT=${TRANSMISSION_TORRENTING_PORT}
+      - RPCPORT9=9091
+      - USER=${TRANSMISSION_USER} #optional
+      - PASS=${TRANSMISSION_PASS} #optional
+    volumes:
+      - ${APP_BASE_DIR}/transmission/config:/config
+      - ${MEDIA_DOWNLOAD_DIR}:/share/media/download
+      - ${MEDIA_DOWNLOAD_DIR}:/downloads
+      - ${COMIC_DOWNLOAD_DIR}:/comic-download
+      - ${BOOKS_DOWNLOAD_DIR}:/books-download
+      - ${MUSIC_DOWNLOAD_DIR}:/music-download
+      - ${SHALIU_DOWNLOAD_DIR}:/shualiu
+    ports:
+      - ${TRANSMISSION_PORT}:9091
+      - ${TRANSMISSION_TORRENTING_PORT}:${TRANSMISSION_TORRENTING_PORT}
+      - ${TRANSMISSION_TORRENTING_PORT}:${TRANSMISSION_TORRENTING_PORT}/udp
+    restart: unless-stopped
+    envfile:
+      - stack.env  
 
-#================= qBittorrent ====================================
-QBITTORRENT_PORT=8080
-QBITTORRENT_TORRENTING_PORT=49153
+  ### MoviePilot #######################################################################
+  MoviePilot:
+    image: jxxghp/moviepilot:latest
+    container_name: moviepilot
+    ports:
+      - ${MOVIEPILOT_PORT}:3000        # webui端口
+      - ${MOVIEPILOT_API_PORT}:3001        # API服务端口
+    volumes:     
+      - ${MEDIA_DIR}:/share/media
+      - ${APP_BASE_DIR}/moviepilot/moviepilot:/moviepilot
+      - ${APP_BASE_DIR}/moviepilot/config:/config
+      - ${SHALIU_DOWNLOAD_DIR}:/shualiu
+      - ${APP_BASE_DIR}/qbittorrent/qBittorrent/BT_backup:/BT_backup
+    environment: 
+      - PROXY_HOST=${MOVIEPILOT_PROXY_HOST} #网络代理，访问themoviedb或者重启更新需要使用代理访问，格式为http(s)://ip:port、socks5://user:pass@host:port（仅支持环境变量配置）
+      - PUID=${PUID} #运行程序用户的uid，默认0（仅支持环境变量配置）
+      - PGID=${PGID} #运行程序用户的gid，默认0（仅支持环境变量配置）
+      - SUPERUSER=${MOVIEPILOT_USER}
+      - SUBSCRIBE_SEARCH=false # 订阅搜索，true/false，默认false，开启后会每隔24小时对所有订阅进行全量搜索，以补齐缺失剧集（一般情况下正常订阅即可，订阅搜索只做为兜底，会增加站点压力，不建议开启）
+      - TZ=${TZ}
+      - AUTH_SITE=${MOVIEPILOT_AUTH_SITE}
+      # IYUU登录令牌
+      - IYUU_SIGN=${MOVIEPILOT_IYUU_SIGN}
+      - AUDIENCES_UID=${MOVIEPILOT_AUDIENCES_UID}
+      - AUDIENCES_PASSKEY=${MOVIEPILOT_AUDIENCES_PASSKEY}
+      # 进阶配置
+      # 大内存模式，默认为false，开启后会占用更多的内存，但响应速度会更快
+      - BIG_MEMORY_MODE=true
+      - MOVIE_RENAME_FORMAT=${MOVIEPILOT_MOVIE_RENAME_FORMAT}
+      - TV_RENAME_FORMAT=${MOVIEPILOT_TV_RENAME_FORMAT}
+      # 插件市场仓库地址，仅支持Github仓库main分支，多个地址使用,分隔，默认为官方插件仓库：https://github.com/jxxghp/MoviePilot-Plugins ，通过查看MoviePilot-Plugins项目的fork，或者查看频道置顶了解更多第三方插件仓库。
+      - PLUGIN_MARKET=https://github.com/jxxghp/MoviePilot-Plugins,https://github.com/thsrite/MoviePilot-Plugins,https://github.com/honue/MoviePilot-Plugins
+      # Github token，提高自动更新、插件安装等请求Github Api的限流阈值，格式：ghp_****
+    restart: always
+    envfile:
+      - stack.env
 
-#================= transmission ====================================
-TRANSMISSION_PORT=8080
-TRANSMISSION_TORRENTING_PORT=51413
-TRANSMISSION_USER=
-TRANSMISSION_PASS=
+  ### Nastools #######################################################################
+  nastools:
+    image: linyuan0213/nas-tools:latest:latest
+    container_name: nastools
+    environment:
+      - UID=${PUID}
+      - GID=${PGID}
+    ports:
+      - ${NASTOOLS_PORT}:3000
+    volumes:
+      - ${APP_BASE_DIR}/nastools/config:/config
+      - ${APP_BASE_DIR}/nastools/browser:/nastools
+      - ${MEDIA_DIR}:/share/media 
+    restart: unless-stopped
+    envfile:
+      - stack.env
 
-#================= moviepilot ====================================
-MOVIEPILOT_PORT=9300
-MOVIEPILOT_API_PORT=9301
-MOVIEPILOT_USER=
-MOVIEPILOT_PROXY_HOST=
-MOVIEPILOT_AUTH_SITE=iyuu,audiences
-MOVIEPILOT_IYUU_SIGN=
-MOVIEPILOT_MOVIE_RENAME_FORMAT="{{original_title}}{% if year %} ({{year}}){% endif %}/{{original_title}}{% if year %} ({{year}}){% endif %}{% if part %}-{{part}}{% endif %}{% if videoFormat %} - {{videoFormat}}{% endif %}{{fileExt}}"
-MOVIEPILOT_TV_RENAME_FORMAT="{{original_title}}{% if year %} ({{year}}){% endif %}/Season {{season}}/{{original_title}} - {{season_episode}}{% if part %}-{{part}}{% endif %}{{fileExt}}"
+  ### Calibre Web #######################################################################
+  calibre-web:
+    image: linuxserver/calibre-web:latest
+    container_name: calibre-web
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - DOCKER_MODS=linuxserver/mods:universal-calibre #optional
+      - OAUTHLIB_RELAX_TOKEN_SCOPE=1 #optional
+    volumes:
+      - ${APP_BASE_DIR}/calibre-web/config:/config
+      - ${APP_BASE_DIR}/calibre-web/library:/library
+      - ${BOOKS_DIR}/calibre-books:/books
+    ports:
+      - ${CALIBRE_WEB_PORT}:8083
+    restart: unless-stopped
+  envfile:
+    - stack.env
 
-#================= nastools ====================================
-NASTOOLS_PORT=9330
+  ### Komga #######################################################################
+  komga:
+    image: gotson/komga:latest
+    container_name: komga
+    volumes:
+      - ${BOOKS_DIR}:/books
+      - ${APP_BASE_DIR}/komga/config:/config   
+    ports:
+      - ${KOMGA_PORT}:25600
+    user: "${PUID}:${PGID}"
+    # remove the whole environment section if you don't need it
+    environment:
+      - TZ=${TZ}
+    restart: unless-stopped
+    envfile:
+      - stack.env
 
-#================= calibre-web ====================================
-CALIBRE_WEB_PORT=8083
+  ### Hlink #######################################################################
+  hlink:
+    image: likun7981/hlink:latest # docker镜像名称
+    container_name: hlink
+    ports: # 这个端口映射
+      - ${HLINK_PORT}:9090
+    volumes: # 这个表示存储空间映射
+      - ${BOOKS_DIR}:/share/books          # Use as many as you want
+      - ${MUSIC_DIR}:/share/music          # Use as many as you want
+      - ${APP_BASE_DIR}/hlink/config:/config
+    environment:
+      - HLINK_HOME=/config # 这个是环境变量
+    restart: unless-stopped
+    envfile:
+      - stack.env
 
-#================= komga ====================================
-KOMGA_PORT=25600
+  ### Navidrome #######################################################################    
+  navidrome:
+    image: deluan/navidrome:latest
+    user: ${PUID}:${PGID} # should be owner of volumes
+    ports:
+      - ${NAVIDROME_PORT}:4533
+    restart: unless-stopped
+    environment:
+      # Optional: put your config options customization here. Examples:
+      ND_SCANSCHEDULE: 1h
+      ND_LOGLEVEL: info  
+      ND_SESSIONTIMEOUT: 24h
+      ND_BASEURL: ""
+    devices:
+      - ${DVI_DIR}:/dev/dri
+    volumes:
+      - "${APP_BASE_DIR}/navidrome/config:/data"
+      - "${MUSIC_DIR}/music:/music:ro"
+    envfile:
+      - stack.env
 
-#================= navidrome ====================================
-NAVIDROME_PORT=4533
+  ### Nextcloud #######################################################################
+  nextcloud-db:
+    container_name: hexo
+    image: mariadb:10.6
+    restart: always
+    command: --transaction-isolation=READ-COMMITTED --log-bin=binlog --binlog-format=ROW
+    volumes:
+      -  ${APP_BASE_DIR}/nextcloud/storage:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=JntoFg8o
+      - MYSQL_PASSWORD=JntoFg8o
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+    envfile:
+      - stack.env
+      
+  nextcloud-redis:
+    image: redis:alpine
+    restart: always
+  nextcloud-app:
+    image: nextcloud:fpm
+    restart: always
+    links:
+      - nextcloud-db
+    volumes:
+      - ${APP_BASE_DIR}/nextcloud/config:/var/www/html
+      - ${APP_BASE_DIR}/nextcloud/data:/var/www/html/data
+    environment:
+      - MYSQL_PASSWORD=JntoFg8o
+      - MYSQL_DATABASE=nextcloud
+      - MYSQL_USER=nextcloud
+      - MYSQL_HOST=db
+      - REDIS_HOST=redis
+      - OVERWRITEHOST=${NEXTCLOUD_OVERWRITEHOST}
+      - OVERWRITEPROTOCOL=${NEXTCLOUD_OVERWRITEPROTOCOL}
+      - OVERWRITECLIURL=${NEXTCLOUD_OVERWRITECLIURL}
+    envfile:
+      - stack.env
 
-#================= hlink ====================================
-HLINK_PORT=9090
+  nextcloud-cron:
+    image: nextcloud:fpm
+    restart: always
+    volumes:
+      - ${APP_BASE_DIR}/nextcloud/config:/var/www/html:z
+      - ${APP_BASE_DIR}/nextcloud/data:/var/www/html/data
+    entrypoint: /cron.sh
+    depends_on:
+      - nextcloud-db
+      - nextcloud-redis
+    envfile:
+      - stack.env
 
-#================= hexo ====================================
-HEXO_PORT=4000
-HEXO_GIT_USER=
-HEXO_GIT_EMAIL=
+  nextcloud-web:
+    image: nginx
+    restart: always
+    ports:
+      - ${NEXTCLOUD_PORT}:80
+    links:
+      - nextcloud-app
+    volumes:
+      -  ${APP_BASE_DIR}/nextcloud/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    volumes_from:
+      - nextcloud-app
+    envfile:
+      - stack.env
 
-#================= nextcloud ====================================
-NEXTCLOUD_PORT=9080
-NEXTCLOUD_OVERWRITEHOST=nextcloud.gamersgu.cn:12443
-NEXTCLOUD_OVERWRITEPROTOCOL=https
-NEXTCLOUD_OVERWRITECLIURL=https://nextcloud.gamersgu.cn:12443
+  ### Homepage #######################################################################
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    ports:
+      - ${HOMEPAGE_PORT}:3000
+    volumes:
+      - ${APP_BASE_DIR}/homepage/config:/app/config # Make sure your local config directory 
+      - ${DOCKER_SOCKET}:/var/run/docker.sock:ro # (optional) For docker integrations
+      - /:/srv
+      - ${APP_BASE_DIR}/homepage/config/images:/app/public/images
+      - ${APP_BASE_DIR}/homepage/config/icons:/app/public/icons
+    envfile:
+      - stack.env
 
-#================= homepage ====================================
-HOMEPAGE_PORT=3000
+  ### Swag #######################################################################
+  swag:
+    image: linuxserver/swag:latest
+    container_name: swag
+    environment:
+      - TZ=${TZ}
+      - URL=${SWAG_URL}
+      - SUBDOMAINS=${SWAG_SUBDOMAINS}
+      - VALIDATION=${SWAG_VALIDATION}
+      - DNSPLUGIN=${SWAG_DNSPLUGIN}
+    volumes:
+      - ${APP_BASE_DIR}/swag:/config
+      - ${APP_BASE_DIR}/swag-ssl:/swag-ssl
+    ports:
+      - ${SWAG_PORT_HTTP}:80
+      - ${SWAG_PORT_HTTPS}:443
+    restart: unless-stopped
+    envfile:
+      - stack.env
+  
+  ### Kodexplorer #######################################################################
+  kodexplorer:
+    image: yangxuan8282/kodexplorer:latest
+    container_name: kodexplorer
+    environment:
+      - TZ=${TZ}
+      - PUID=${PUID}
+      - PGID=${PGID}
+    volumes:
+      - ${APP_BASE_DIR}/kodbox/data:/var/www/html
+      - /:/srv
+    ports:
+      - ${KODX_PORT}:80
+    restart: unless-stopped
 
-#================= swag ====================================
-SWAG_PORT_HTTP=12080
-SWAG_PORT_HTTPS=12443
-SWAG_URL=gamersgu.cn
-SWAG_SUBDOMAINS=wildcard
-SWAG_VALIDATION=dns
-SWAG_DNSPLUGIN=aliyun
+  ### Hexo #######################################################################
+  hexo:
+    container_name: hexo
+    image: bloodstar/hexo:latest
+    hostname: hexo
+    ports:
+      - ${HEXO_PORT}:4000
+    volumes:
+      - ${APP_BASE_DIR}/hexo:/app
+    environment:
+      - PUID=${PGID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - GIT_USER=${HEXO_GIT_USER}
+      - GIT_EMAIL=${HEXO_GIT_EMAIL}
+    envfile:
+      - stack.env
+    restart: always
 
-#================= kodexplorer ====================================
-KODX_PORT=9280
 
